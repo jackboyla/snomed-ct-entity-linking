@@ -49,10 +49,10 @@ def load_snomed_ct(data_path: Path):
         return df[df.active == "1"]
 
     active_terms = _read_file_and_subset_to_active(
-        data_path / "sct2_Concept_Snapshot_INT_20230531.txt"
+        data_path / "sct2_Concept_Snapshot_INT_20251201.txt"
     )
     active_descs = _read_file_and_subset_to_active(
-        data_path / "sct2_Description_Snapshot-en_INT_20230531.txt"
+        data_path / "sct2_Description_Snapshot-en_INT_20251201.txt"
     )
 
     df = pd.merge(active_terms, active_descs, left_on=["id"], right_on=["conceptId"], how="inner")[
@@ -76,7 +76,7 @@ def load_snomed_ct(data_path: Path):
 def make_flattened_terminology(
     snomed_ct_directory: Path = data_directory
     / "raw"
-    / "SnomedCT_InternationalRF2_PRODUCTION_20230531T120000Z_Challenge_Edition",
+    / "SnomedCT_InternationalRF2_PRODUCTION_20251201T120000Z",
     output_path: Path = interim_directory / "flattened_terminology.csv",
 ):
     # unzip the terminology provided on the data download page and specify the path to the folder here
@@ -133,9 +133,18 @@ def make_clean_annotations():
         for i in annotations.index
     ]
 
-    annotations["concept text"] = [
-        snomed[annotations.loc[i, "concept_id"]] for i in annotations.index
-    ]
+    concept_texts = []
+    missing_ids = set()
+    for i in annotations.index:
+        concept_id = annotations.loc[i, "concept_id"]
+        try:
+            concept_texts.append(snomed[concept_id])
+        except KeyError:
+            concept_texts.append(f"MISSING_CONCEPT_ID {concept_id}")
+            missing_ids.add(concept_id)
+    if len(missing_ids) > 0:        
+        logger.warning(f"Missing concept_ids in SNOMED: {missing_ids}")
+    annotations["concept text"] = concept_texts
 
     annotations["source"] = [" ".join(s.split()) for s in annotations["source"]]
     output_path = interim_directory / "train_annotations_cln.csv"
@@ -148,7 +157,7 @@ def get_snomed_ct_synonyms(snomed_ct_directory: Path, flattened_path: Path):
         Path(snomed_ct_directory)
         / "Snapshot"
         / "Terminology"
-        / "sct2_Description_Snapshot-en_INT_20230531.txt",
+        / "sct2_Description_Snapshot-en_INT_20251201.txt",
         sep="\t",
     )
 
@@ -170,7 +179,7 @@ def make_synonyms(
     athena_directory: Path = raw_directory / "athena",
     snomed_ct_directory: Path = data_directory
     / "raw"
-    / "SnomedCT_InternationalRF2_PRODUCTION_20230531T120000Z_Challenge_Edition",
+    / "SnomedCT_InternationalRF2_PRODUCTION_20251201T120000Z",
     flattened_path: Path = interim_directory / "flattened_terminology.csv",
     output_path: Path = interim_directory / "flattened_terminology_syn_snomed+omop_v5.csv",
 ):
@@ -327,19 +336,19 @@ def make_term_extension():
     logger.info("Loading SNOMED CT relationships, descriptions, and flattened terminology...")
     relationships = pd.read_csv(
         raw_directory
-        / "SnomedCT_InternationalRF2_PRODUCTION_20230531T120000Z_Challenge_Edition"
+        / "SnomedCT_InternationalRF2_PRODUCTION_20251201T120000Z"
         / "Snapshot"
         / "Terminology"
-        / "sct2_Relationship_Snapshot_INT_20230531.txt",
+        / "sct2_Relationship_Snapshot_INT_20251201.txt",
         dtype={"sourceId": int, "typeId": int, "destinationId": int},
         sep="\t",
     )
     descriptions = pd.read_csv(
         raw_directory
-        / "SnomedCT_InternationalRF2_PRODUCTION_20230531T120000Z_Challenge_Edition"
+        / "SnomedCT_InternationalRF2_PRODUCTION_20251201T120000Z"
         / "Snapshot"
         / "Terminology"
-        / "sct2_Description_Snapshot-en_INT_20230531.txt",
+        / "sct2_Description_Snapshot-en_INT_20251201.txt",
         sep="\t",
         dtype={"conceptId": int, "typeId": int, "active": int},
         quoting=csv.QUOTE_NONE,

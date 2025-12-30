@@ -11,6 +11,7 @@ from itertools import permutations
 from pathlib import Path
 
 import pandas as pd
+from loguru import logger
 from mimic_common import (
     annotate_with_dict,
     common_headers,
@@ -381,6 +382,7 @@ def mock_train(texts, annotations, headers, run_name):
 
 def get_cid_type_sections_pairs(texts, annotations, headers, cid_to_type):
     pairs = set()
+    missing_ids = set()
     for nid in annotations["note_id"].unique():
         if nid not in texts.index:
             continue
@@ -388,7 +390,12 @@ def get_cid_type_sections_pairs(texts, annotations, headers, cid_to_type):
         h_positions, pos_header = get_sections(texts[nid], headers)
         for i, cid in df[["start", "concept_id"]].values:
             h = get_header_by_pos(i, h_positions, pos_header, headers)
-            pairs.add((h, cid_to_type[cid]))
+            try:
+                pairs.add((h, cid_to_type[cid]))
+            except KeyError:
+                missing_ids.add(cid)
+    if len(missing_ids) > 0:
+        logger.warning(f"Missing concept_ids in SNOMED: {missing_ids}")
     return pairs
 
 
